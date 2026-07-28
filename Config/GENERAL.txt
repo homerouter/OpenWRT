@@ -10,7 +10,7 @@ CONFIG_KERNEL_ZRAM_BACKEND_LZ4=y
 CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y
 #科学插件调整
 CONFIG_PACKAGE_luci-app-momo=n
-CONFIG_PACKAGE_luci-app-nikki=y
+CONFIG_PACKAGE_luci-app-nikki=n
 CONFIG_PACKAGE_luci-app-openclash=n
 CONFIG_PACKAGE_luci-app-passwall2=n
 CONFIG_PACKAGE_luci-app-homeproxy=n
@@ -140,6 +140,7 @@ CONFIG_PACKAGE_openssl-util=y # OpenSSL 指令
 CONFIG_PACKAGE_proto-bonding=y # 链路聚合协议
 CONFIG_PACKAGE_sfdisk=n # 冗余分区指令
 CONFIG_PACKAGE_sgdisk=n # 冗余 GPT 指令
+CONFIG_PACKAGE_sing-box=n
 CONFIG_PACKAGE_smartmontools=y # 闪存 SMART 监控
 CONFIG_PACKAGE_smartmontools-drivedb=y #  SMART 数据库
 CONFIG_PACKAGE_usb-modeswitch=n #  USB 模式切换
