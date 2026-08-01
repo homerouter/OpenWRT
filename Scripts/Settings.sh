@@ -108,3 +108,6 @@ if ! grep -q "S15zram" include/rootfs.mk; then
     sed -i "/clean_ipkg,\$(1)/a $(printf '\t')rm -f \$(1)/etc/rc.d/S15zram" include/rootfs.mk
 	echo "禁用zram开机启动"
 fi
+
+#sqm修复ipt支持
+sed -i 's/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb +iptables +iptables-mod-ipopt/DEPENDS:=+tc +ip +kmod-ifb/g' feeds/packages/net/sqm-scripts/Makefile
