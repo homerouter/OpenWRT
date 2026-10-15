@@ -209,8 +209,10 @@ jobs:
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/
+          mkdir -p staging_dir/host/bin
+          ln -sf "$(which gzip)" staging_dir/host/bin/gzip
 
-          make download -j$(nproc)
+          make download -j$(nproc) || make download -j1 V=s
 
       - name: Compile Firmware
         if: ${{ !inputs.WRT_TEST }}

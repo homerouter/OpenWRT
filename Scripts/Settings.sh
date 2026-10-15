@@ -112,6 +112,13 @@ fi
 #sqm修复ipt支持
 sed -i 's/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb +iptables +iptables-mod-ipopt/DEPENDS:=+tc +ip +kmod-ifb/g' feeds/packages/net/sqm-scripts/Makefile
 
+# 修复 tools/libdeflate 缺失 host gzip 导致的解包编译失败
+if [ -f "tools/libdeflate/Makefile" ]; then
+	sed -i 's|\$(STAGING_DIR_HOST)/bin/gzip|gzip|g' tools/libdeflate/Makefile
+fi
+mkdir -p staging_dir/host/bin
+ln -sf "$(command -v gzip)" staging_dir/host/bin/gzip
+
 # 集成内核与 nftables 的 fullconenat 支持 (使用 turboacc 模块集，禁用 SFE 保持 NSS 满血硬加速)
 if [ ! -d "./package/turboacc" ]; then
 	echo "正在集成 nft-fullcone 内核模块及 nftables/firewall4 fullcone 补丁..."
@@ -119,6 +126,13 @@ if [ ! -d "./package/turboacc" ]; then
 	curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh
 	bash add_turboacc.sh --no-sfe
 	rm -f add_turboacc.sh
+
+	# 清理 luci-app-turboacc 对不存在的 SFE 模块的依赖声明，避免依赖缺失警告
+	if [ -f "./package/turboacc/luci-app-turboacc/Makefile" ]; then
+		sed -i '/SHORTCUT_FE/d' ./package/turboacc/luci-app-turboacc/Makefile
+		sed -i '/kmod-shortcut-fe/d' ./package/turboacc/luci-app-turboacc/Makefile
+		sed -i '/kmod-fast-classifier/d' ./package/turboacc/luci-app-turboacc/Makefile
+	fi
 fi
 
 # 默认开启 firewall 全锥形 NAT (FullCone NAT)
