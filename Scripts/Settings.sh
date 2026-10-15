@@ -127,6 +127,19 @@ if [ ! -d "./package/turboacc" ]; then
 	bash add_turboacc.sh --no-sfe
 	rm -f add_turboacc.sh
 
+	# 移除 generic 952 patch，避免污染内核 nf_conntrack_ecache 并破坏 qualcommax 平台的 NSS 补丁 (0600-1-qca-nss-ecm-support-CORE.patch)
+	find ./target/linux/generic/ -name "*conntrack-events-support-multiple-registrant*" -delete
+	find ./target/linux/generic/ -name "*952*" -delete
+	sed -i '/CONFIG_NF_CONNTRACK_CHAIN_EVENTS/d' ./target/linux/generic/config-* 2>/dev/null || true
+
+	# 清理 nft-fullcone 中的 CHAIN_EVENTS 配置依赖并移除 -Werror 避免误报
+	if [ -f "./package/turboacc/nft-fullcone/Makefile" ]; then
+		sed -i 's/CONFIG_NF_CONNTRACK_CHAIN_EVENTS=y//g' ./package/turboacc/nft-fullcone/Makefile
+	fi
+	if [ -f "./package/turboacc/nft-fullcone/src/Makefile" ]; then
+		sed -i 's/-Werror//g' ./package/turboacc/nft-fullcone/src/Makefile
+	fi
+
 	# 清理 luci-app-turboacc 对不存在的 SFE 模块的依赖声明，避免依赖缺失警告
 	if [ -f "./package/turboacc/luci-app-turboacc/Makefile" ]; then
 		sed -i '/SHORTCUT_FE/d' ./package/turboacc/luci-app-turboacc/Makefile
