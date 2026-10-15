@@ -119,6 +119,19 @@ fi
 mkdir -p staging_dir/host/bin
 ln -sf "$(command -v gzip)" staging_dir/host/bin/gzip
 
+# 提前接入系统 ccache 并启用压缩与最大容量设置，加速编译
+if command -v ccache >/dev/null 2>&1; then
+	mkdir -p staging_dir/host/bin
+	ln -sf "$(command -v ccache)" staging_dir/host/bin/ccache
+	mkdir -p .ccache
+	export CCACHE_DIR="$PWD/.ccache"
+	ccache -M 5G 2>/dev/null || true
+	ccache -o compression=true 2>/dev/null || true
+	ccache -o compression_level=6 2>/dev/null || true
+fi
+echo "CONFIG_DEVEL=y" >> ./.config
+echo "CONFIG_CCACHE=y" >> ./.config
+
 # 集成内核与 nftables 的 fullconenat 支持 (使用 turboacc 模块集，禁用 SFE 保持 NSS 满血硬加速)
 if [ ! -d "./package/turboacc" ]; then
 	echo "正在集成 nft-fullcone 内核模块及 nftables/firewall4 fullcone 补丁..."
