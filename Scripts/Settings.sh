@@ -111,3 +111,23 @@ fi
 
 #sqm修复ipt支持
 sed -i 's/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb +iptables +iptables-mod-ipopt/DEPENDS:=+tc +ip +kmod-ifb/g' feeds/packages/net/sqm-scripts/Makefile
+
+# 集成内核与 nftables 的 fullconenat 支持 (使用 turboacc 模块集，禁用 SFE 保持 NSS 满血硬加速)
+if [ ! -d "./package/turboacc" ]; then
+	echo "正在集成 nft-fullcone 内核模块及 nftables/firewall4 fullcone 补丁..."
+	rm -rf ./package/turboacc
+	curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh
+	bash add_turboacc.sh --no-sfe
+	rm -f add_turboacc.sh
+fi
+
+# 默认开启 firewall 全锥形 NAT (FullCone NAT)
+UCI_FIREWALL_SH="./package/base-files/files/etc/uci-defaults/99-default-fullcone"
+mkdir -p "$(dirname "$UCI_FIREWALL_SH")"
+cat << 'EOF' > "$UCI_FIREWALL_SH"
+#!/bin/sh
+uci set firewall.@defaults[0].fullcone='1'
+uci commit firewall
+exit 0
+EOF
+chmod +x "$UCI_FIREWALL_SH"
