@@ -92,29 +92,22 @@ cpu_load="USR: ${usr} SYS: ${sys}"
 nss_load="$(awk 'NR == 6 { print $2; exit }' /sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi 2>/dev/null)"
 echo -n "${cpu_load} NSS: ${nss_load:-N/A}"
 EOF
-echo "cpu状态已修改:usr+sys+nss"
+echo "usr+sys+nss已修改"
 fi
+
+#关闭重绑定保护,本地v6dns及缓存
+sed -i 's/option rebind_protection 1/option rebind_protection 0/g' package/network/services/dnsmasq/files/dhcp.conf
+sed -i 's/config dhcp.*lan/&\n\toption dns_service 0/g' package/network/services/dnsmasq/files/dhcp.conf
+sed -i 's/8000/0/g' package/network/services/dnsmasq/files/dhcp.conf
 
 #去掉luci版本后缀并显示年份
 sed -i "s#_('Firmware Version'), (L.isObject(boardinfo.release) ? boardinfo.release.description + ' / ' : '') + (luciversion || ''),#_('Firmware Version'), (L.isObject(boardinfo.release) ? (boardinfo.release.description || '').replace('SNAPSHOT r0', 'r$(date +%Y)') : ''),#g" feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js
 
-#为fakeip关闭重绑定保护
-sed -i 's/option rebind_protection 1/option rebind_protection 0/g' package/network/services/dnsmasq/files/dhcp.conf
-
-#sqm修复ipk支持及启动延迟
-sed -i 's/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb +iptables +iptables-mod-ipopt/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb/g' feeds/packages/net/sqm-scripts/Makefile
-
-if ! grep -q "Build/Prepare" feeds/packages/net/sqm-scripts/Makefile; then
-    sed -i '/$(eval $(call BuildPackage,sqm-scripts))/i\
-define Build/Prepare\n\
-	$(call Build/Prepare/Default)\n\
-	sed -i "s/START=50/START=95/g" $(PKG_BUILD_DIR)/platform/openwrt/sqm-init\n\
-	sed -i "/export SQM_VERBOSITY_MIN=5/i \	sleep 9" $(PKG_BUILD_DIR)/platform/openwrt/sqm-init\n\
-endef\n' feeds/packages/net/sqm-scripts/Makefile
+#禁用zram开机自启
+if ! grep -q "S15zram" include/rootfs.mk; then
+    sed -i "/clean_ipkg,\$(1)/a $(printf '\t')rm -f \$(1)/etc/rc.d/S15zram" include/rootfs.mk
+	echo "禁用zram开机启动"
 fi
 
-#禁用zram开机自启
-#if ! grep -q "S15zram" include/rootfs.mk; then
-#    sed -i "/clean_ipkg,\$(1)/a $(printf '\t')rm -f \$(1)/etc/rc.d/S15zram" include/rootfs.mk
-#	echo "禁用zram开机启动"
-#fi
+#sqm修复ipt支持
+sed -i 's/DEPENDS:=+tc +ip +kmod-sched-cake +kmod-ifb +iptables +iptables-mod-ipopt/DEPENDS:=+tc +ip +kmod-ifb/g' feeds/packages/net/sqm-scripts/Makefile
