@@ -6,6 +6,12 @@ name: QCA-ALL
 
 #CI计划
 on:
+  #代码推送自动编译：当 openwrt 分支有改动推送时触发
+  push:
+    branches:
+      - openwrt
+    paths-ignore:
+      - '**.md'
   #自动编译：当Auto-Clean运行完成后
   workflow_run:
     workflows: ["Auto-Clean"]
@@ -65,3 +71,5 @@ jobs:
       WRT_SOURCE: ${{matrix.SOURCE}}
       #插件调整
       WRT_PACKAGE: ${{inputs.PACKAGE}}
+      #指定提交
+      WRT_COMMIT_HASH: ${{inputs.COMMIT_HASH}}
