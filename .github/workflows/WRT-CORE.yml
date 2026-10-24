@@ -145,10 +145,10 @@ jobs:
           echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
           echo "source_hash=$WRT_FULL_HASH" >> "$GITHUB_OUTPUT"
 
-          # GitHub Action 移除国内下载源
+          # GitHub Action 移除国内下载源 (使用 jq 保持合法 JSON 格式)
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
-            sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
+            jq 'map_values([.[] | select(. | test("\\.cn/|tencent|aliyun") | not)])' "$PROJECT_MIRRORS_FILE" > "${PROJECT_MIRRORS_FILE}.tmp" && mv -f "${PROJECT_MIRRORS_FILE}.tmp" "$PROJECT_MIRRORS_FILE"
           fi
 
       - name: Check Scripts
@@ -209,8 +209,10 @@ jobs:
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/
+          mkdir -p staging_dir/host/bin
+          ln -sf "$(which gzip)" staging_dir/host/bin/gzip
 
-          make download -j$(nproc)
+          make download -j$(nproc) || make download -j1 V=s
 
       - name: Compile Firmware
         if: ${{ !inputs.WRT_TEST }}

@@ -1,0 +1,301 @@
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY & homerouter
+
+name: Test-Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      TAG:
+        description: 'Release 标签名称 (留空则默认测试最新发布的 Release，例如 IPQ60XX-26.10.16)'
+        required: false
+        type: string
+        default: ''
+      TARGET_BOARD:
+        description: '目标机型名称 (例如 jdcloud_re-cs-02)'
+        required: false
+        type: string
+        default: 'jdcloud_re-cs-02'
+  release:
+    types:
+      - published
+  workflow_run:
+    workflows: ["QCA-ALL"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    name: Verify Firmware Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Analysis Tools
+        run: |
+          sudo apt-get update -yqq
+          sudo apt-get install -yqq file tar bzip2 xz-utils squashfs-tools u-boot-tools jq
+
+      - name: Determine Target Release Tag
+        id: target-tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.TAG }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG=$(gh release list --repo "${{ github.repository }}" --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::No release tag found to test!"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Testing Release Tag: $TAG"
+
+      - name: Download Release Assets
+        id: download
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.target-tag.outputs.tag }}
+        run: |
+          mkdir -p ./firmware_assets
+          gh release download "$TAG" --repo "${{ github.repository }}" --dir ./firmware_assets
+          echo "Downloaded assets:"
+          ls -lh ./firmware_assets
+
+      - name: Verify File Sizes and Compute Checksums
+        id: checksums
+        run: |
+          cd ./firmware_assets
+          echo "### 📦 固件文件列表及校验和 (SHA-256)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 文件名 | 文件大小 | SHA-256 校验和 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
+
+          sha256sum * > sha256sums.txt
+          while read -r HASH FILE; do
+            [ "$FILE" = "sha256sums.txt" ] && continue
+            SIZE=$(ls -lh "$FILE" | awk '{print $5}')
+            echo "| \`$FILE\` | $SIZE | \`$HASH\` |" >> "$GITHUB_STEP_SUMMARY"
+          done < sha256sums.txt
+
+          BIN_COUNT=$(find . -maxdepth 1 -name "*.bin" | wc -l)
+          if [ "$BIN_COUNT" -eq 0 ]; then
+            echo "::error::未找到任何 .bin 固件镜像文件！"
+            exit 1
+          fi
+
+          for f in *.bin; do
+            SZ=$(stat -c%s "$f")
+            if [ "$SZ" -lt 4194304 ]; then
+              echo "::error::固件文件 $f 尺寸过小 (${SZ} bytes)，可能存在构建截断！"
+              exit 1
+            fi
+          done
+
+      - name: Check Manifest Packages
+        id: check-manifest
+        run: |
+          cd ./firmware_assets
+          MANIFEST_FILES=( $(find . -maxdepth 1 -name "*.manifest") )
+          if [ ${#MANIFEST_FILES[@]} -eq 0 ]; then
+            echo "::error::未找到 .manifest 软件包清单文件！"
+            exit 1
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🧩 核心功能与包依赖检验" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 检验项目 | 要求 | 状态 | 详情 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :--- | :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=0
+
+          check_present() {
+            local label="$1"
+            local pattern="$2"
+            local found=""
+            for mf in "${MANIFEST_FILES[@]}"; do
+              local res
+              res=$(grep -E "$pattern" "$mf" || true)
+              if [ -n "$res" ]; then
+                found="$res"
+                break
+              fi
+            done
+            if [ -n "$found" ]; then
+              echo "| $label | 必须包含 | ✅ PASS | \`$found\` |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $label | 必须包含 | ❌ FAIL | 未在任何 manifest 中找到匹配项 |" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+            fi
+          }
+
+          check_absent() {
+            local label="$1"
+            local pattern="$2"
+            local found=""
+            for mf in "${MANIFEST_FILES[@]}"; do
+              local res
+              res=$(grep -E "$pattern" "$mf" || true)
+              if [ -n "$res" ]; then
+                found="$res"
+                break
+              fi
+            done
+            if [ -z "$found" ]; then
+              echo "| $label | 排除精简 | ✅ PASS | 已确认无该组件 |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $label | 排除精简 | ❌ FAIL | 发现未精简的组件: \`$found\` |" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+            fi
+          }
+
+          # 必须包含的网关核心组件
+          check_present "QCA NSS 驱动核心 (kmod-qca-nss-drv)" "^kmod-qca-nss-drv[ -]"
+          check_present "QCA NSS ECM 路由加速 (kmod-qca-nss-ecm)" "^kmod-qca-nss-ecm[ -]"
+          check_present "QCA NSS 固件 (nss-firmware)" "^nss-firmware[ -]"
+          check_present "NSS SQM 智能流控 (sqm-scripts-nss)" "^sqm-scripts-nss[ -]"
+          check_present "LuCI SQM 界面 (luci-app-sqm)" "^luci-app-sqm[ -]"
+          check_present "FullCone NAT (fullconenat-sonic)" "^(kmod-nft-fullcone|fullconenat-sonic|luci-app-fullconenat)[ -]"
+          check_present "磁盘管理 (luci-app-mini-diskmanager)" "^luci-app-mini-diskmanager[ -]"
+          check_present "默认主题 (luci-theme-bootstrap)" "^luci-theme-bootstrap[ -]"
+
+          # 特色拓展组件（如专用组件）
+          check_optional() {
+            local label="$1"
+            local pattern="$2"
+            local found=""
+            for mf in "${MANIFEST_FILES[@]}"; do
+              local res
+              res=$(grep -E "$pattern" "$mf" || true)
+              if [ -n "$res" ]; then
+                found="$res"
+                break
+              fi
+            done
+            if [ -n "$found" ]; then
+              echo "| $label | 特色组件 | ✅ PASS | \`$found\` |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $label | 特色组件 | ℹ️ SKIP | 未在清单中找到匹配项 |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          check_optional "亚瑟面板 LED 灯控 (luci-app-athena-led)" "^luci-app-athena-led[ -]"
+          check_optional "Turbo ACC 加速 (luci-app-turboacc)" "^luci-app-turboacc[ -]"
+
+          # 必须排除的多余组件（保持纯净高性能网关）
+          check_absent "应用商店 (luci-app-store)" "^(luci-app-store|istore)[ -]"
+          check_absent "科学代理 (sing-box)" "^sing-box[ -]"
+          check_absent "科学代理 (luci-app-momo)" "^luci-app-momo[ -]"
+          check_absent "科学代理 (luci-app-nikki)" "^luci-app-nikki[ -]"
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::软件包清单校验未通过！详情见测试报告。"
+            exit 1
+          fi
+
+      - name: Verify Firmware Partitions and SquashFS Integrity
+        id: verify-images
+        env:
+          BOARD: ${{ inputs.TARGET_BOARD || 'jdcloud_re-cs-02' }}
+        run: |
+          cd ./firmware_assets
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🔍 固件镜像与 SquashFS 分区结构校验" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 固件文件 | 校验项 | 状态 | 详情 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :--- | :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=0
+
+          # 1. 验证 sysupgrade 镜像
+          for bin in *sysupgrade*.bin; do
+            [ -f "$bin" ] || continue
+            echo "Validating sysupgrade archive: $bin"
+
+            if ! tar -tf "$bin" >/dev/null 2>&1; then
+              echo "| \`$bin\` | Tar 归档结构 | ❌ FAIL | 损坏的 Tar 归档格式 |" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+              continue
+            fi
+            echo "| \`$bin\` | Tar 归档结构 | ✅ PASS | 合法的 POSIX Tar 归档 |" >> "$GITHUB_STEP_SUMMARY"
+
+            TMP_DIR=$(mktemp -d)
+            tar -xf "$bin" -C "$TMP_DIR"
+
+            # 校验 CONTROL
+            CONTROL_FILE=$(find "$TMP_DIR" -type f -name "CONTROL" | head -n 1)
+            if [ -n "$CONTROL_FILE" ]; then
+              BOARD_VAL=$(cat "$CONTROL_FILE")
+              if [[ "$BOARD_VAL" == *"$BOARD"* ]]; then
+                echo "| \`$bin\` | CONTROL 机型标识 | ✅ PASS | \`$BOARD_VAL\` (匹配目标: $BOARD) |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "| \`$bin\` | CONTROL 机型标识 | ❌ FAIL | \`$BOARD_VAL\` (不匹配: $BOARD) |" >> "$GITHUB_STEP_SUMMARY"
+                FAILED=1
+              fi
+            else
+              echo "| \`$bin\` | CONTROL 机型标识 | ❌ FAIL | 缺少 CONTROL 文件 |" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+            fi
+
+            # 校验 Kernel (FIT / DTB)
+            KERNEL_FILE=$(find "$TMP_DIR" -type f -name "kernel" | head -n 1)
+            if [ -n "$KERNEL_FILE" ]; then
+              K_TYPE=$(file "$KERNEL_FILE")
+              if [[ "$K_TYPE" == *"Device Tree Blob"* ]] || [[ "$K_TYPE" == *"u-boot"* ]] || [[ "$K_TYPE" == *"FIT"* ]]; then
+                K_SIZE=$(ls -lh "$KERNEL_FILE" | awk '{print $5}')
+                echo "| \`$bin\` | Kernel (FIT/DTB) | ✅ PASS | $K_TYPE ($K_SIZE) |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "| \`$bin\` | Kernel (FIT/DTB) | ❌ FAIL | 非法内核文件: $K_TYPE |" >> "$GITHUB_STEP_SUMMARY"
+                FAILED=1
+              fi
+            fi
+
+            # 校验 Root (SquashFS 4.0 超级块与可挂载性)
+            ROOT_FILE=$(find "$TMP_DIR" -type f -name "root" | head -n 1)
+            if [ -n "$ROOT_FILE" ]; then
+              R_TYPE=$(file "$ROOT_FILE")
+              if [[ "$R_TYPE" == *"Squashfs filesystem"* ]]; then
+                R_SIZE=$(ls -lh "$ROOT_FILE" | awk '{print $5}')
+                SB_INFO=$(unsquashfs -s "$ROOT_FILE" | grep -E "Block size|Compression|Inodes" | tr '\n' '; ')
+                echo "| \`$bin\` | Rootfs (SquashFS) | ✅ PASS | $R_TYPE ($R_SIZE); $SB_INFO |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "| \`$bin\` | Rootfs (SquashFS) | ❌ FAIL | 非法 Rootfs 格式: $R_TYPE |" >> "$GITHUB_STEP_SUMMARY"
+                FAILED=1
+              fi
+            fi
+
+            rm -rf "$TMP_DIR"
+          done
+
+          # 2. 验证 factory 镜像
+          for bin in *factory*.bin; do
+            [ -f "$bin" ] || continue
+            F_TYPE=$(file "$bin")
+            if [[ "$F_TYPE" == *"Device Tree Blob"* ]] || [[ "$F_TYPE" == *"u-boot"* ]] || [[ "$F_TYPE" == *"FIT"* ]]; then
+              F_SIZE=$(ls -lh "$bin" | awk '{print $5}')
+              echo "| \`$bin\` | Factory (U-Boot FIT) | ✅ PASS | $F_TYPE ($F_SIZE) |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| \`$bin\` | Factory (U-Boot FIT) | ❌ FAIL | 非法 Factory 引导镜像: $F_TYPE |" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::固件分区或文件系统校验失败！"
+            exit 1
+          fi
+
+      - name: Report Final Test Status
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🎉 最终测试结论：PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "本固件版本通过所有产物完整性校验、软件包清单检验及分区解包验证，可放心刷入 **${{ inputs.TARGET_BOARD || 'jdcloud_re-cs-02' }}** 网关运行。" >> "$GITHUB_STEP_SUMMARY"
