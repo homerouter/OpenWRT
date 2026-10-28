@@ -31,7 +31,8 @@ permissions:
 jobs:
   verify:
     name: Verify Firmware Artifacts
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
