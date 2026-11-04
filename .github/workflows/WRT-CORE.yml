@@ -114,7 +114,8 @@ jobs:
             echo "WRT_SUBTARGET=$WRT_SUBTARGET"
             echo "WRT_CACHE_TARGET=$WRT_CACHE_TARGET"
             echo "WRT_CACHE_PREFIX=$WRT_CACHE_PREFIX"
-            echo "WRT_WIFI=wifi-yes"
+            WRT_WIFI=$(grep -oE 'WIFI-(YES|NO)$' <<< "${WRT_CONFIG^^}" || true); WRT_WIFI=${WRT_WIFI:-WIFI-YES}
+            echo "WRT_WIFI=$WRT_WIFI"
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
           } >> "$GITHUB_ENV"
@@ -267,10 +268,11 @@ jobs:
 
             find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
 
+            WIFI_SUFFIX=$([[ "${WRT_CONFIG,,}" == *"wifi"* && "${WRT_CONFIG,,}" == *"no"* ]] && echo "-nowifi" || echo "")
             for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
               EXT=$(basename $FILE | cut -d '.' -f 2-)
               NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
-              NEW_FILE="$NAME"-"$WRT_KVER"-"$WRT_DATE"."$EXT"
+              NEW_FILE="$NAME$WIFI_SUFFIX"-"$WRT_KVER"-"$WRT_DATE"."$EXT"
               mv -f $FILE ./upload/$NEW_FILE
             done
 
