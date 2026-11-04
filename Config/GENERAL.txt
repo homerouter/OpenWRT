@@ -2,46 +2,57 @@
 CONFIG_USE_APK=n
 CONFIG_PACKAGE_zoneinfo-asia=y
 CONFIG_PACKAGE_luci-mod-rpc=y
-CONFIG_PACKAGE_luci-app-store=y
-CONFIG_PACKAGE_block-mount=y # (挂载点)
+CONFIG_PACKAGE_luci-app-store=n
+#zram默认关闭
+CONFIG_PACKAGE_zram-swap=y
+CONFIG_PACKAGE_kmod-lib-lz4=y
+CONFIG_KERNEL_ZRAM_BACKEND_LZ4=y
+CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y
 #科学插件调整
-CONFIG_PACKAGE_luci-app-sing=y
-CONFIG_PACKAGE_luci-app-meta=y
 CONFIG_PACKAGE_luci-app-momo=n
 CONFIG_PACKAGE_luci-app-nikki=n
 CONFIG_PACKAGE_luci-app-openclash=n
 CONFIG_PACKAGE_luci-app-passwall2=n
 CONFIG_PACKAGE_luci-app-homeproxy=n
+CONFIG_PACKAGE_luci-app-honk=y
+CONFIG_PACKAGE_honk=y
 #增加插件
+CONFIG_PACKAGE_luci-theme-vantage=y
+CONFIG_PACKAGE_luci-app-vantage=y
 CONFIG_PACKAGE_luci-app-admask=n
 CONFIG_PACKAGE_luci-app-easymesh=n
 CONFIG_PACKAGE_luci-app-upnp=n
 CONFIG_PACKAGE_luci-app-ttyd=n
 CONFIG_PACKAGE_luci-app-samba4=n
+#CONFIG_PACKAGE_luci-app-podman=n
 CONFIG_PACKAGE_luci-app-mosdns=n
 CONFIG_PACKAGE_luci-app-ddns-go=n
 CONFIG_PACKAGE_luci-app-cpufreq=n
 CONFIG_PACKAGE_luci-app-partexp=n
 CONFIG_PACKAGE_luci-app-gecoosac=n
+CONFIG_PACKAGE_luci-app-wolultra=n
 CONFIG_PACKAGE_luci-app-easytier=n
-CONFIG_PACKAGE_luci-app-openlist2=n
 CONFIG_PACKAGE_luci-app-tailscale=n
 CONFIG_PACKAGE_luci-app-quickfile=n
 CONFIG_PACKAGE_luci-app-netwizard=n
 CONFIG_PACKAGE_luci-app-autoreboot=n
 CONFIG_PACKAGE_luci-app-timecontrol=n
-CONFIG_PACKAGE_luci-app-mini-diskmanager=n
+CONFIG_PACKAGE_luci-app-mini-diskmanager=y
 #删除插件
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n # 自动升级已关闭
 CONFIG_PACKAGE_luci-app-wol=n # WOL 已关闭
+CONFIG_PACKAGE_luci-app-turboacc=n # Turbo ACC 已关闭
 #参数调整
 CONFIG_CCACHE=y # 启用编译缓存
 CONFIG_DEVEL=y # 包含开发工具
 CONFIG_FEED_video=n # 视频源
+CONFIG_SIGN_FIRMWARE=n  # 开启恢复出厂
+CONFIG_SIGN_EACH_PACKAGE=n  # 开启恢复出厂
 CONFIG_TARGET_MULTI_PROFILE=y # 多配置文件支持
 CONFIG_TARGET_PER_DEVICE_ROOTFS=y # 每个设备独立文件系统
 CONFIG_TARGET_ROOTFS_INITRAMFS=n # 不生成 Initramfs
 #内核调整
+CONFIG_KERNEL_DEBUG_INFO_BTF=y
 CONFIG_PACKAGE_kmod-ata-ahci=y #  SATA AHCI 驱动
 CONFIG_PACKAGE_kmod-ata-core=y #  ATA 核心驱动
 CONFIG_PACKAGE_kmod-bonding=y # 网络链路聚合
@@ -61,7 +72,9 @@ CONFIG_PACKAGE_kmod-nft-connlimit=y # NFT 连接限制
 CONFIG_PACKAGE_kmod-nft-core=y # NFT 核心
 CONFIG_PACKAGE_kmod-nft-dup-inet=y # NFT 镜像流量
 CONFIG_PACKAGE_kmod-nft-fib=y # NFT 路由查找
-CONFIG_PACKAGE_kmod-nft-fullcone=y # NFT 全锥 NAT
+CONFIG_PACKAGE_fullconenat-sonic=y # SONiC 全锥 NAT
+CONFIG_PACKAGE_luci-app-fullconenat-sonic=y # 全锥 NAT LuCI 控制台
+# CONFIG_PACKAGE_kmod-nft-fullcone is not set
 CONFIG_PACKAGE_kmod-nft-nat=y # NFT NAT 转换
 CONFIG_PACKAGE_kmod-nft-netdev=y # NFT 网卡设备过滤
 CONFIG_PACKAGE_kmod-nft-offload=y # NFT 硬件卸载
@@ -137,6 +150,7 @@ CONFIG_PACKAGE_openssl-util=y # OpenSSL 指令
 CONFIG_PACKAGE_proto-bonding=y # 链路聚合协议
 CONFIG_PACKAGE_sfdisk=n # 冗余分区指令
 CONFIG_PACKAGE_sgdisk=n # 冗余 GPT 指令
+CONFIG_PACKAGE_sing-box=n
 CONFIG_PACKAGE_smartmontools=y # 闪存 SMART 监控
 CONFIG_PACKAGE_smartmontools-drivedb=y #  SMART 数据库
 CONFIG_PACKAGE_usb-modeswitch=n #  USB 模式切换
