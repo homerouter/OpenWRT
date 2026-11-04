@@ -52,11 +52,13 @@ UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
 UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
 #UPDATE_PACKAGE "glass" "rchen14b/luci-theme-glass" "main"
 UPDATE_PACKAGE "glass" "77160860/luci-theme-glass" "main"
+UPDATE_PACKAGE "vantage" "anothaDev/luci-theme-vantage" "main"
 
 UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
 UPDATE_PACKAGE "passwall2" "Openwrt-Passwall/openwrt-passwall2" "main" "pkg"
+UPDATE_PACKAGE "honk" "kenzok8/openwrt-honk" "main"
 
 UPDATE_PACKAGE "ddns-go" "sirpdboy/luci-app-ddns-go" "main"
 UPDATE_PACKAGE "diskmanager" "4IceG/luci-app-mini-diskmanager" "main"
@@ -80,8 +82,9 @@ mkdir -p ./OpenWrt-nikki/mihomo-meta
 cp -f "$GITHUB_WORKSPACE/mihomo/Makefile" ./OpenWrt-nikki/mihomo-meta/Makefile
 rm -rf ./mihomo
 
+UPDATE_PACKAGE "luci-app-athena-led" "NONGFAH/luci-app-athena-led" "main"
 UPDATE_PACKAGE "luci-app-store" "linkease/istore" "main"
-UPDATE_PACKAGE "sqm-scripts-nss" "JuliusBairaktaris/sqm-scripts-nss" "main"
+UPDATE_PACKAGE "sqm-scripts-nss" "qosmio/sqm-scripts-nss" "main"
 #UPDATE_PACKAGE "sqm-scripts-nss" "JuliusBairaktaris/nss-packages" "edma-nss" "pkg"
 UPDATE_PACKAGE "luci-app-podman" "Zerogiven-OpenWRT-Packages/luci-app-podman" "main"
 UPDATE_PACKAGE "luci-app-easymesh" "kenzok8/openwrt-packages" "master" "pkg"
